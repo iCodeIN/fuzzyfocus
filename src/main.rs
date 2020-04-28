@@ -2,14 +2,12 @@ use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
 use winapi::{
     shared::{
-        minwindef::{BYTE, FALSE, LPARAM, PBYTE, TRUE},
-        ntdef::NULL,
+        minwindef::{BYTE, LPARAM, PBYTE, TRUE},
         windef::HWND,
     },
     um::{
-        processthreadsapi,
-        winnt::{LPWSTR, PVOID},
-        winuser::{self, EnumWindows, GetWindowTextW, IsWindowVisible, SetWindowPos},
+        winnt::LPWSTR,
+        winuser::{self, EnumWindows, GetWindowTextW, IsWindowVisible},
     },
 };
 
@@ -48,9 +46,9 @@ unsafe fn get_window_name(hwnd: HWND) -> Option<String> {
     to_string(&raw[..])
 }
 
-unsafe fn run() {
-    unsafe extern "system" fn enum_windows_proc(hwnd: HWND, state_raw: LPARAM) -> i32 {
-        let state = &mut *(state_raw as *mut State);
+unsafe fn list_windows(window_list: &mut Vec<Window>) {
+    unsafe extern "system" fn enum_windows_proc(hwnd: HWND, list_raw: LPARAM) -> i32 {
+        let list = &mut *(list_raw as *mut Vec<Window>);
 
         let name = match get_window_name(hwnd) {
             Some(s) => s,
@@ -58,14 +56,47 @@ unsafe fn run() {
         };
 
         if !name.is_empty() && IsWindowVisible(hwnd) == TRUE {
-            state.windows.push(Window { hwnd, name });
+            list.push(Window { hwnd, name });
         }
 
         TRUE
     }
 
+    EnumWindows(Some(enum_windows_proc), window_list as *mut Vec<Window> as LPARAM);
+
+    window_list.sort_by(|a, b| a.name.cmp(&b.name));
+    window_list.dedup_by(|a, b| a.name.eq(&b.name));
+}
+
+unsafe fn focus_window(hwnd: HWND) {
+    // https://www.codeproject.com/Tips/76427/How-to-bring-window-to-top-with-SetForegroundWindo
+    let keystate = [0 as BYTE; 256];
+    if winuser::GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
+        if keystate[winuser::VK_MENU as usize] & 0x80 == 0 {
+            winuser::keybd_event(
+                winuser::VK_MENU as u8,
+                0,
+                winuser::KEYEVENTF_EXTENDEDKEY | 0,
+                0,
+            );
+        }
+    }
+    winuser::SetForegroundWindow(hwnd);
+    if winuser::GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
+        if keystate[winuser::VK_MENU as usize] & 0x80 == 0 {
+            winuser::keybd_event(
+                winuser::VK_MENU as u8,
+                0,
+                winuser::KEYEVENTF_EXTENDEDKEY | winuser::KEYEVENTF_KEYUP,
+                0,
+            );
+        }
+    }
+}
+
+unsafe fn run() {
     let mut state = State::default();
-    EnumWindows(Some(enum_windows_proc), &mut state as *mut State as LPARAM);
+    list_windows(&mut state.windows);
 
     for (i, window) in state.windows.iter().enumerate() {
         println!("{} {}", i, window.name);
@@ -81,81 +112,5 @@ unsafe fn run() {
     let window = &state.windows[index];
     println!("setting forcus for {}", window.name);
 
-    let keystate = [0 as BYTE; 256];
-    if winuser::GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
-        if keystate[winuser::VK_MENU as usize] & 0x80 == 0 {
-            winuser::keybd_event(winuser::VK_MENU as u8, 0, winuser::KEYEVENTF_EXTENDEDKEY | 0, 0);
-        }
-    }
-    if winuser::GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
-        if keystate[winuser::VK_MENU as usize] & 0x80 == 0 {
-            winuser::keybd_event(winuser::VK_MENU as u8, 0, winuser::KEYEVENTF_EXTENDEDKEY | winuser::KEYEVENTF_KEYUP, 0);
-        }
-    }
-    winuser::SetForegroundWindow(window.hwnd);
-
-    /*
-    let local_process_id = processthreadsapi::GetCurrentThreadId();
-    let window_process_id = winuser::GetWindowThreadProcessId(window.hwnd, 0 as *mut u32);
-
-    dbg!(winuser::AttachThreadInput(
-        local_process_id,
-        window_process_id,
-        TRUE
-    ));
-
-    let mut lock_timeout = 0;
-    winuser::SystemParametersInfoW(
-        winuser::SPI_GETFOREGROUNDLOCKTIMEOUT,
-        0,
-        &mut lock_timeout as *mut i32 as PVOID,
-        0
-    );
-    winuser::SystemParametersInfoW(
-        winuser::SPI_SETFOREGROUNDLOCKTIMEOUT,
-        0,
-        NULL,
-        winuser::SPIF_UPDATEINIFILE | winuser::SPIF_SENDWININICHANGE,
-    );
-
-    dbg!(winuser::AllowSetForegroundWindow(winuser::ASFW_ANY));
-    dbg!(winuser::SetForegroundWindow(window.hwnd));
-
-    winuser::SystemParametersInfoW(
-        winuser::SPI_SETFOREGROUNDLOCKTIMEOUT,
-        0,
-        lock_timeout as PVOID,
-        winuser::SPIF_UPDATEINIFILE | winuser::SPIF_SENDWININICHANGE,
-    );
-    dbg!(winuser::AttachThreadInput(
-        local_process_id,
-        window_process_id,
-        FALSE
-    ));
-    */
-
-    /*
-    SetWindowPos(
-        window.hwnd,
-        winuser::HWND_TOP,
-        0,
-        0,
-        0,
-        0,
-        winuser::SWP_ASYNCWINDOWPOS
-            | winuser::SWP_SHOWWINDOW
-            | winuser::SWP_NOSIZE
-            | winuser::SWP_NOMOVE
-            | winuser::SWP_NOACTIVATE,
-    );
-    */
-
-    //dbg!(winuser::SetFocus(window.hwnd));
-
-    /*
-    winuser::SetFocus(window.hwnd);
-    winuser::SetForegroundWindow(window.hwnd);
-    winuser::BringWindowToTop(window.hwnd);
-    winuser::SetActiveWindow(window.hwnd);
-    */
+    focus_window(window.hwnd);
 }
