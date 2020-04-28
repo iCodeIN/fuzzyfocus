@@ -16,15 +16,6 @@ struct Window {
     pub name: String,
 }
 
-#[derive(Default)]
-struct State {
-    pub windows: Vec<Window>,
-}
-
-fn main() {
-    unsafe { run() }
-}
-
 unsafe fn to_string(raw: &[u16]) -> Option<String> {
     let mut len = raw.len();
     for i in 0..raw.len() {
@@ -62,7 +53,10 @@ unsafe fn list_windows(window_list: &mut Vec<Window>) {
         TRUE
     }
 
-    EnumWindows(Some(enum_windows_proc), window_list as *mut Vec<Window> as LPARAM);
+    EnumWindows(
+        Some(enum_windows_proc),
+        window_list as *mut Vec<Window> as LPARAM,
+    );
 
     window_list.sort_by(|a, b| a.name.cmp(&b.name));
     window_list.dedup_by(|a, b| a.name.eq(&b.name));
@@ -94,11 +88,11 @@ unsafe fn focus_window(hwnd: HWND) {
     }
 }
 
-unsafe fn run() {
-    let mut state = State::default();
-    list_windows(&mut state.windows);
+unsafe fn unsafe_main() {
+    let mut window_list = Vec::new();
+    list_windows(&mut window_list);
 
-    for (i, window) in state.windows.iter().enumerate() {
+    for (i, window) in window_list.iter().enumerate() {
         println!("{} {}", i, window.name);
     }
 
@@ -109,8 +103,12 @@ unsafe fn run() {
         .parse::<usize>()
         .expect("could not read number");
 
-    let window = &state.windows[index];
+    let window = &window_list[index];
     println!("setting forcus for {}", window.name);
 
     focus_window(window.hwnd);
+}
+
+fn main() {
+    unsafe { unsafe_main() }
 }
