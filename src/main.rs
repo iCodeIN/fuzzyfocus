@@ -1,5 +1,6 @@
 use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
+use rustyline::{completion::Completer, error::ReadlineError, Editor};
 use winapi::{
     shared::{
         minwindef::{BYTE, LPARAM, PBYTE, TRUE},
@@ -88,9 +89,25 @@ unsafe fn focus_window(hwnd: HWND) {
     }
 }
 
+struct WindowNameCompleter;
+
+impl Completer for WindowNameCompleter {
+    type Candidate = String;
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context,
+    ) -> Result<(usize, Vec<Self::Candidate>)> {
+    }
+}
+
 unsafe fn unsafe_main() {
     let mut window_list = Vec::new();
     list_windows(&mut window_list);
+
+    let window_names: Vec<_> = window_list.iter().map(|w| w.name.clone()).collect();
+    let mut readline = Editor::<()>::new();
 
     for (i, window) in window_list.iter().enumerate() {
         println!("{} {}", i, window.name);
