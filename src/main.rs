@@ -161,6 +161,15 @@ unsafe fn run_daemon() {
                     //let pressing_win_key = GetKeyState(VK_LWIN) != 0;
                     //let pressed_space = p.vkCode as i32 == VK_SPACE;
                     //consume_key = pressing_win_key && pressed_space;
+
+                    if consume_key {
+                        match w_param as u32 {
+                            WM_KEYUP | WM_SYSKEYUP => {
+                                show_dialog();
+                            }
+                            _ => (),
+                        }
+                    }
                 }
                 _ => (),
             }
@@ -184,6 +193,17 @@ unsafe fn run_daemon() {
     }
 
     UnhookWindowsHookEx(hook);
+}
+
+unsafe fn show_dialog() {
+    let text = std::ffi::CString::new("click to reenable").unwrap();
+    let caption = std::ffi::CString::new("disable low level keys").unwrap();
+    MessageBoxA(
+        0 as HWND,
+        text.as_ptr() as LPCSTR,
+        caption.as_ptr() as LPCSTR,
+        MB_OK,
+    );
 }
 
 fn main() {
