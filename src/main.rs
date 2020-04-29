@@ -58,10 +58,7 @@ unsafe fn list_windows(window_list: &mut Vec<Window>) {
         TRUE
     }
 
-    EnumWindows(
-        Some(enum_windows_proc),
-        window_list as *mut Vec<Window> as LPARAM,
-    );
+    EnumWindows(Some(enum_windows_proc), window_list.as_mut_ptr() as LPARAM);
 
     window_list.sort_by(|a, b| a.name.cmp(&b.name));
     window_list.dedup_by(|a, b| a.name.eq(&b.name));
@@ -257,6 +254,8 @@ unsafe fn hook_example() {
                     //let pressing_win_key = GetKeyState(VK_LWIN) != 0;
                     //let pressed_space = p.vkCode as i32 == VK_SPACE;
                     //consume_key = pressing_win_key && pressed_space;
+
+                    println!("GOT KEY");
                 }
                 _ => (),
             }
@@ -270,20 +269,15 @@ unsafe fn hook_example() {
     }
 
     let h_instance = GetModuleHandleA(0 as LPCSTR);
-    let _hook = SetWindowsHookExA(WH_KEYBOARD_LL, Some(keyboard_hook_proc), h_instance, 0);
-    //loop {
-    //thread::sleep(time::Duration::from_secs(1));
-    //}
+    let hook = SetWindowsHookExA(WH_KEYBOARD_LL, Some(keyboard_hook_proc), h_instance, 0);
 
-    let text = CString::new("click to reenable").unwrap();
-    let caption = CString::new("disable low level keys").unwrap();
-    MessageBoxA(
-        0 as HWND,
-        text.as_ptr() as LPCSTR,
-        caption.as_ptr() as LPCSTR,
-        MB_OK,
-    );
-    UnhookWindowsHookEx(_hook);
+    let mut msg: MSG = zeroed();
+    while GetMessageA(&mut msg, 0 as HWND, 0, 0) > 0 {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    UnhookWindowsHookEx(hook);
 }
 
 fn main() {
