@@ -3,8 +3,14 @@ name = "fuzzyfocus"
 version = "0.1.0"
 authors = ["Matheus Lessa <matheus@fastmail.com>"]
 edition = "2018"
+description = "A simple window fuzzy switcher alternative to alt-tab for windows"
+license = "MIT"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+documentation = "https://github.com/matheuslessarodrigues/fuzzyfocus"
+homepage = "https://github.com/matheuslessarodrigues/fuzzyfocus"
+readme = "README.md"
+keywords = ["tool", "cli"]
+categories = "command-line-utilities"]
 
 [dependencies]
 winapi = { version = "0.3", features = ["winuser", "minwindef", "windef", "processthreadsapi"] }
