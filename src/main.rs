@@ -1,14 +1,8 @@
 use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
 use winapi::{
-    shared::{
-        minwindef::{BYTE, LPARAM, PBYTE, TRUE},
-        windef::HWND,
-    },
-    um::{
-        winnt::LPWSTR,
-        winuser::{self, EnumWindows, GetWindowTextW, IsWindowVisible},
-    },
+    shared::{minwindef::*, windef::*},
+    um::{winnt::*, winuser::*},
 };
 
 use rustyline::{completion::Completer, Context, Editor, Helper, Result};
@@ -70,25 +64,15 @@ unsafe fn list_windows(window_list: &mut Vec<Window>) {
 unsafe fn focus_window(hwnd: HWND) {
     // https://www.codeproject.com/Tips/76427/How-to-bring-window-to-top-with-SetForegroundWindo
     let keystate = [0 as BYTE; 256];
-    if winuser::GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
-        if keystate[winuser::VK_MENU as usize] & 0x80 == 0 {
-            winuser::keybd_event(
-                winuser::VK_MENU as u8,
-                0,
-                winuser::KEYEVENTF_EXTENDEDKEY | 0,
-                0,
-            );
+    if GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
+        if keystate[VK_MENU as usize] & 0x80 == 0 {
+            keybd_event(VK_MENU as u8, 0, KEYEVENTF_EXTENDEDKEY | 0, 0);
         }
     }
-    winuser::SetForegroundWindow(hwnd);
-    if winuser::GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
-        if keystate[winuser::VK_MENU as usize] & 0x80 == 0 {
-            winuser::keybd_event(
-                winuser::VK_MENU as u8,
-                0,
-                winuser::KEYEVENTF_EXTENDEDKEY | winuser::KEYEVENTF_KEYUP,
-                0,
-            );
+    SetForegroundWindow(hwnd);
+    if GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
+        if keystate[VK_MENU as usize] & 0x80 == 0 {
+            keybd_event(VK_MENU as u8, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
         }
     }
 }
@@ -139,7 +123,7 @@ unsafe fn unsafe_main() {
         fuzzy_matcher: SkimMatcherV2::default(),
     };
     readline.set_helper(Some(readline_helper));
-    let input = match readline.readline("window > ") {
+    let input = match readline.readline("") {
         Ok(line) => line,
         Err(_) => return,
     };
