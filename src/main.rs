@@ -1,12 +1,8 @@
-use std::{
-    ffi::OsString,
-    mem::{size_of, zeroed},
-    os::windows::ffi::OsStringExt,
-};
+use std::{ffi::OsString, mem::zeroed, os::windows::ffi::OsStringExt, thread};
 
 use winapi::{
     shared::{minwindef::*, windef::*},
-    um::{libloaderapi::*, wincon::*, wingdi::*, winnt::*, winuser::*},
+    um::{consoleapi::*, libloaderapi::*, wincon::*, winnt::*, winuser::*},
 };
 
 use rustyline::{completion::Completer, Context, Editor, Helper, Result};
@@ -56,7 +52,10 @@ unsafe fn list_windows(window_list: &mut Vec<Window>) {
         TRUE
     }
 
-    EnumWindows(Some(enum_windows_proc), window_list.as_mut_ptr() as LPARAM);
+    EnumWindows(
+        Some(enum_windows_proc),
+        window_list as *mut Vec<Window> as LPARAM,
+    );
 
     window_list.sort_by(|a, b| a.name.cmp(&b.name));
     window_list.dedup_by(|a, b| a.name.eq(&b.name));
@@ -113,7 +112,7 @@ impl Completer for ReadlineHelper {
     }
 }
 
-unsafe fn unsafe_main() {
+unsafe fn run_console() {
     let mut window_list = Vec::new();
     list_windows(&mut window_list);
     let window_names: Vec<_> = window_list.iter().map(|w| w.name.clone()).collect();
@@ -144,6 +143,16 @@ unsafe fn unsafe_main() {
     }
 }
 
+unsafe fn on_console(f: unsafe fn() -> ()) {
+    if AllocConsole() == FALSE {
+        return;
+    }
+    thread::spawn(move || {
+        f();
+        FreeConsole();
+    });
+}
+
 unsafe fn run_daemon() {
     unsafe extern "system" fn keyboard_hook_proc(
         n_code: i32,
@@ -153,22 +162,19 @@ unsafe fn run_daemon() {
         let mut consume_key = false;
         if n_code == HC_ACTION {
             match w_param as u32 {
-                WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP => {
+                WM_KEYDOWN | WM_SYSKEYDOWN => {
                     let p = &*(l_param as PKBDLLHOOKSTRUCT);
+                    let vk_code = p.vkCode as i32;
                     let alt_down = (p.flags & LLKHF_ALTDOWN) != 0;
-                    let pressed_escape = p.vkCode as i32 == VK_ESCAPE;
-                    consume_key = alt_down && pressed_escape;
+                    let pressed = vk_code == VK_ESCAPE;
+                    //let pressed = vk_code == VK_M;
+                    consume_key = alt_down && pressed;
                     //let pressing_win_key = GetKeyState(VK_LWIN) != 0;
                     //let pressed_space = p.vkCode as i32 == VK_SPACE;
                     //consume_key = pressing_win_key && pressed_space;
 
                     if consume_key {
-                        match w_param as u32 {
-                            WM_KEYUP | WM_SYSKEYUP => {
-                                show_dialog();
-                            }
-                            _ => (),
-                        }
+                        on_console(run_console);
                     }
                 }
                 _ => (),
@@ -195,7 +201,7 @@ unsafe fn run_daemon() {
     UnhookWindowsHookEx(hook);
 }
 
-unsafe fn show_dialog() {
+unsafe fn _show_dialog() {
     let text = std::ffi::CString::new("click to reenable").unwrap();
     let caption = std::ffi::CString::new("disable low level keys").unwrap();
     MessageBoxA(
@@ -207,6 +213,6 @@ unsafe fn show_dialog() {
 }
 
 fn main() {
-    //unsafe { unsafe_main() }
     unsafe { run_daemon() }
+    //unsafe { run_console() }
 }
