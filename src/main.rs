@@ -32,7 +32,7 @@ unsafe fn to_string(raw: &[u16]) -> Option<String> {
 
 unsafe fn get_window_name(hwnd: HWND) -> Option<String> {
     let raw = [0 as u16; 128];
-    GetWindowTextW(hwnd, &raw as *const u16 as LPWSTR, raw.len() as i32);
+    GetWindowTextW(hwnd, raw.as_ptr() as LPWSTR, raw.len() as i32);
     to_string(&raw[..])
 }
 
@@ -64,13 +64,13 @@ unsafe fn list_windows(window_list: &mut Vec<Window>) {
 unsafe fn focus_window(hwnd: HWND) {
     // https://www.codeproject.com/Tips/76427/How-to-bring-window-to-top-with-SetForegroundWindo
     let keystate = [0 as BYTE; 256];
-    if GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
+    if GetKeyboardState(keystate.as_ptr() as PBYTE) == TRUE {
         if keystate[VK_MENU as usize] & 0x80 == 0 {
             keybd_event(VK_MENU as u8, 0, KEYEVENTF_EXTENDEDKEY | 0, 0);
         }
     }
     SetForegroundWindow(hwnd);
-    if GetKeyboardState(&keystate as *const BYTE as PBYTE) == TRUE {
+    if GetKeyboardState(keystate.as_ptr() as PBYTE) == TRUE {
         if keystate[VK_MENU as usize] & 0x80 == 0 {
             keybd_event(VK_MENU as u8, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
         }
