@@ -1,6 +1,5 @@
 use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
-use rustyline::{completion::Completer, error::ReadlineError, Editor};
 use winapi::{
     shared::{
         minwindef::{BYTE, LPARAM, PBYTE, TRUE},
@@ -11,6 +10,11 @@ use winapi::{
         winuser::{self, EnumWindows, GetWindowTextW, IsWindowVisible},
     },
 };
+
+use rustyline::{completion::Completer, Context, Editor, Helper, Result};
+use rustyline_derive::{Highlighter, Hinter, Validator};
+
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 
 struct Window {
     pub hwnd: HWND,
@@ -89,41 +93,70 @@ unsafe fn focus_window(hwnd: HWND) {
     }
 }
 
-struct WindowNameCompleter;
+#[derive(Hinter, Highlighter, Validator)]
+struct ReadlineHelper {
+    pub window_names: Vec<String>,
+    pub fuzzy_matcher: SkimMatcherV2,
+}
 
-impl Completer for WindowNameCompleter {
+impl ReadlineHelper {
+    pub fn get_matches(&self, input: &str) -> Vec<String> {
+        let mut matches = Vec::new();
+        for name in &self.window_names {
+            let name = &name[..];
+            if let Some(score) = self.fuzzy_matcher.fuzzy_match(name, input) {
+                matches.push((score, name));
+            }
+        }
+
+        matches.sort_by_key(|m| -m.0);
+        matches.iter().map(|m| m.1.to_owned()).collect()
+    }
+}
+
+impl Helper for ReadlineHelper {}
+
+impl Completer for ReadlineHelper {
     type Candidate = String;
     fn complete(
         &self,
         line: &str,
-        pos: usize,
-        ctx: &Context,
+        _pos: usize,
+        _ctx: &Context,
     ) -> Result<(usize, Vec<Self::Candidate>)> {
+        Ok((0, self.get_matches(line)))
     }
 }
 
 unsafe fn unsafe_main() {
     let mut window_list = Vec::new();
     list_windows(&mut window_list);
-
     let window_names: Vec<_> = window_list.iter().map(|w| w.name.clone()).collect();
-    let mut readline = Editor::<()>::new();
 
-    for (i, window) in window_list.iter().enumerate() {
-        println!("{} {}", i, window.name);
+    let mut readline = Editor::new();
+    let readline_helper = ReadlineHelper {
+        window_names,
+        fuzzy_matcher: SkimMatcherV2::default(),
+    };
+    readline.set_helper(Some(readline_helper));
+    let input = match readline.readline("window > ") {
+        Ok(line) => line,
+        Err(_) => return,
+    };
+
+    let helper = readline.helper().unwrap();
+    let matches = helper.get_matches(&input[..]);
+    let window_name = match matches.first() {
+        Some(window_name) => window_name,
+        None => return,
+    };
+
+    for window in &window_list {
+        if &window.name[..] == window_name {
+            focus_window(window.hwnd);
+            break;
+        }
     }
-
-    let mut buffer = String::new();
-    std::io::stdin().read_line(&mut buffer).expect("failed");
-    let index = buffer
-        .trim()
-        .parse::<usize>()
-        .expect("could not read number");
-
-    let window = &window_list[index];
-    println!("setting forcus for {}", window.name);
-
-    focus_window(window.hwnd);
 }
 
 fn main() {
