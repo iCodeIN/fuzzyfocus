@@ -1,7 +1,9 @@
 use std::{
+    ffi::CString,
     ffi::OsString,
     mem::{size_of, zeroed},
     os::windows::ffi::OsStringExt,
+    thread, time,
 };
 
 use winapi::{
@@ -238,7 +240,54 @@ unsafe fn unsafe_main() {
     }
 }
 
+unsafe fn hook_example() {
+    unsafe extern "system" fn keyboard_hook_proc(
+        n_code: i32,
+        w_param: WPARAM,
+        l_param: LPARAM,
+    ) -> LRESULT {
+        let mut consume_key = false;
+        if n_code == HC_ACTION {
+            match w_param as u32 {
+                WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP => {
+                    let p = &*(l_param as PKBDLLHOOKSTRUCT);
+                    let alt_down = (p.flags & LLKHF_ALTDOWN) != 0;
+                    let pressed_escape = p.vkCode as i32 == VK_ESCAPE;
+                    consume_key = alt_down && pressed_escape;
+                    //let pressing_win_key = GetKeyState(VK_LWIN) != 0;
+                    //let pressed_space = p.vkCode as i32 == VK_SPACE;
+                    //consume_key = pressing_win_key && pressed_space;
+                }
+                _ => (),
+            }
+        }
+
+        if consume_key {
+            1
+        } else {
+            CallNextHookEx(0 as HHOOK, n_code, w_param, l_param)
+        }
+    }
+
+    let h_instance = GetModuleHandleA(0 as LPCSTR);
+    let _hook = SetWindowsHookExA(WH_KEYBOARD_LL, Some(keyboard_hook_proc), h_instance, 0);
+    //loop {
+    //thread::sleep(time::Duration::from_secs(1));
+    //}
+
+    let text = CString::new("click to reenable").unwrap();
+    let caption = CString::new("disable low level keys").unwrap();
+    MessageBoxA(
+        0 as HWND,
+        text.as_ptr() as LPCSTR,
+        caption.as_ptr() as LPCSTR,
+        MB_OK,
+    );
+    UnhookWindowsHookEx(_hook);
+}
+
 fn main() {
     //unsafe { unsafe_main() }
-    unsafe { show_window() }
+    unsafe { hook_example() }
+    //unsafe { show_window() }
 }
