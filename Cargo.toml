@@ -10,7 +10,7 @@ documentation = "https://github.com/matheuslessarodrigues/fuzzyfocus"
 homepage = "https://github.com/matheuslessarodrigues/fuzzyfocus"
 readme = "README.md"
 keywords = ["tool", "cli"]
-categories = "command-line-utilities"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 winapi = { version = "0.3", features = ["winuser", "minwindef", "windef", "processthreadsapi"] }
